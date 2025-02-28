@@ -98,14 +98,15 @@ while sn != EDep:
             sn = j
             break
 SeqNode = [i[1] for i in Route[:-1]]  # Nodes in the sequence of the route excluding two virtual nodes
-Output_Ar = {i: ArTime.values()[i].X
-             for i in SeqNode}  # Arrival times of each node excluding two virtual nodes.
-Output_Ar = {i: '%d:%d' % (ArTime.values()[i].X // 3600, math.modf(ArTime.values()[i].X/3600)[0] * 60)
-             for i in Output_Ar.keys()}  # Convert arrival time to 'hh:mm' format in order to output
-Output_De = {i: DeTime.values()[i].X
+Output_Ar = {i: list(ArTime.values())[i].X
+             for i in SeqNode}
+Output_Ar = {i: '%d:%d' % (ArTime[i].X // 3600, math.modf(ArTime[i].X / 3600)[0] * 60)
+             for i in SeqNode}
+Output_De = {i: list(DeTime.values())[i].X
              for i in SeqNode}  # Departure times of each node excluding two virtual nodes.
-Output_De = {i: '%d:%d' % (DeTime.values()[i].X // 3600, math.modf(DeTime.values()[i].X/3600)[0] * 60)
-             for i in Output_Ar.keys()}  # Convert arrival time to 'hh:mm' format in order to output
+Output_De = {i: '%d:%d' % (DeTime[i].X // 3600, math.modf(DeTime[i].X / 3600)[0] * 60)
+             for i in SeqNode}
+
 
 # Calculate the unloading time
 nn = 0  # Node number for while-loop
