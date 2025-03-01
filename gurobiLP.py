@@ -82,8 +82,6 @@ def solve_vrptw_gurobi(customers, num_vehicles, capacity):
     else:
         return None
 
-
-
 def plot_solution(customers, routes):
     plt.figure(figsize=(10, 10))
     

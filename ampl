@@ -1,84 +1,142 @@
 from amplpy import AMPL, Environment
-import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.colors as mcolors
 
-def read_c101_file(filename):
-    df = pd.read_csv(filename, delim_whitespace=True, skiprows=1, 
-                     names=["CUST_NO", "XCOORD", "YCOORD", "DEMAND", "READY_TIME", "DUE_DATE", "SERVICE"])
-    return df
+def read_customers_from_file(filename):
+    customers = []
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+        for line in lines:
+            values = line.split()
+            if not values or not values[0].isdigit():
+                continue
+            values = list(map(int, values))
+            if len(values) >= 7:
+                customer = {
+                    'id': values[0],
+                    'x': values[1],
+                    'y': values[2],
+                    'demand': values[3],
+                    'ready_time': values[4],
+                    'due_date': values[5],
+                    'service_time': values[6]
+                }
+                customers.append(customer)
+    return customers
 
-def solve_vrptw_ampl(data):
-    env = Environment()
+def distance(c1, c2):
+    return ((c1['x'] - c2['x'])**2 + (c1['y'] - c2['y'])**2)**0.5
+
+def solve_vrptw_amplepy(customers, num_vehicles, capacity):
+    env = Environment(r"C:\Users\simon\AMPL")
     ampl = AMPL(env)
     
-    ampl.eval("""
-    set CUSTOMERS;
-    set VEHICLES;
-    
+    # Definizione del modello AMPL (senza il comando solve)
+    ampl.eval('''
+    set NODES;
+    param xcoord {NODES};
+    param ycoord {NODES};
+    param demand {NODES};
+    param ready_time {NODES};
+    param due_date {NODES};
+    param service_time {NODES};
     param capacity;
-    param demand{CUSTOMERS};
-    param ready_time{CUSTOMERS};
-    param due_date{CUSTOMERS};
-    param service_time{CUSTOMERS};
-    param distance{CUSTOMERS, CUSTOMERS};
+    param num_vehicles;
+    param dist {NODES, NODES};
     
-    var x{CUSTOMERS, CUSTOMERS, VEHICLES} binary;
-    var arrival_time{CUSTOMERS} >= 0;
+    var x {NODES, NODES, 1..num_vehicles} binary;
+    var t {NODES} >= 0;
     
-    minimize TotalDistance: sum{i in CUSTOMERS, j in CUSTOMERS, k in VEHICLES} distance[i,j] * x[i,j,k];
+    minimize TotalDistance: 
+        sum {i in NODES, j in NODES, k in 1..num_vehicles: i <> j} dist[i,j] * x[i,j,k];
     
-    s.t. OneVisit{i in CUSTOMERS}: sum{j in CUSTOMERS, k in VEHICLES} x[i,j,k] = 1;
-    s.t. FlowConservation{k in VEHICLES, i in CUSTOMERS}: 
-        sum{j in CUSTOMERS} x[i,j,k] - sum{j in CUSTOMERS} x[j,i,k] = 0;
+    subject to VisitOnce {j in NODES diff {1}}:
+        sum {i in NODES diff {j}, k in 1..num_vehicles} x[i,j,k] = 1;
     
-    s.t. Capacity{k in VEHICLES}: 
-        sum{i in CUSTOMERS} demand[i] * sum{j in CUSTOMERS} x[i,j,k] <= capacity;
+    subject to VehicleStart {k in 1..num_vehicles}:
+        sum {j in NODES diff {1}} x[1,j,k] <= 1;
     
-    s.t. TimeWindows{i in CUSTOMERS, j in CUSTOMERS, k in VEHICLES}: 
-        arrival_time[j] >= arrival_time[i] + service_time[i] + distance[i,j] * x[i,j,k] - (1 - x[i,j,k]) * 10000;
+    subject to FlowBalance {i in NODES, k in 1..num_vehicles}:
+        sum {j in NODES diff {i}} x[i,j,k] = sum {j in NODES diff {i}} x[j,i,k];
     
-    s.t. ReadyTime{i in CUSTOMERS}: arrival_time[i] >= ready_time[i];
-    s.t. DueDate{i in CUSTOMERS}: arrival_time[i] <= due_date[i];
-    """)
+    subject to CapacityConstraint {k in 1..num_vehicles}:
+        sum {j in NODES diff {1}, i in NODES diff {j}} demand[j] * x[i,j,k] <= capacity;
     
-    customers = list(data["CUST_NO"])
-    vehicles = list(range(25))  # 25 veicoli
-    capacity = 200
+    subject to TimeWindows {i in NODES diff {1}, j in NODES diff {1}, k in 1..num_vehicles: i <> j}:
+        t[i] + service_time[i] + dist[i,j] - t[j] <= (1 - x[i,j,k]) * 1e6;
     
-    ampl.set['CUSTOMERS'] = customers
-    ampl.set['VEHICLES'] = vehicles
+    subject to ReadyTime {i in NODES}:
+        t[i] >= ready_time[i];
+    
+    subject to DueTime {i in NODES}:
+        t[i] <= due_date[i];
+    ''')
+    
+    node_ids = [c['id'] for c in customers]
+    ampl.set['NODES'] = node_ids
     ampl.param['capacity'] = capacity
+    ampl.param['num_vehicles'] = num_vehicles
     
-    demand_dict = dict(zip(data["CUST_NO"], data["DEMAND"]))
-    ready_time_dict = dict(zip(data["CUST_NO"], data["READY_TIME"]))
-    due_date_dict = dict(zip(data["CUST_NO"], data["DUE_DATE"]))
-    service_dict = dict(zip(data["CUST_NO"], data["SERVICE"]))
+    for c in customers:
+        ampl.param['xcoord'][c['id']] = c['x']
+        ampl.param['ycoord'][c['id']] = c['y']
+        ampl.param['demand'][c['id']] = c['demand']
+        ampl.param['ready_time'][c['id']] = c['ready_time']
+        ampl.param['due_date'][c['id']] = c['due_date']
+        ampl.param['service_time'][c['id']] = c['service_time']
     
-    ampl.param['demand'] = demand_dict
-    ampl.param['ready_time'] = ready_time_dict
-    ampl.param['due_date'] = due_date_dict
-    ampl.param['service_time'] = service_dict
     
-    # Creazione matrice distanza euclidea
-    distances = {}
-    for i in customers:
-        for j in customers:
-            dist = ((data.loc[i, "XCOORD"] - data.loc[j, "XCOORD"])**2 + 
-                    (data.loc[i, "YCOORD"] - data.loc[j, "YCOORD"])**2) ** 0.5
-            distances[i, j] = dist
-    ampl.param['distance'] = distances
+    for i in node_ids:
+        for j in node_ids:
+            ampl.param['dist'][i, j] = distance(customers[i-1], customers[j-1]) if i != j else 0
     
-    # Impostazione solver Gurobi
-    ampl.option['solver'] = 'gurobi'
-    
-    # Risoluzione
+    ampl.setOption("solver", "gurobi")
+    ampl.setOption("solver_options", "MIPGap=0 FeasibilityTol=1e-9 IntFeasTol=1e-9")
     ampl.solve()
     
-    # Recupero soluzione
-    solution = ampl.getVariable("x").getValues()
-    print(solution)
-    return solution
+    x_result = ampl.getVariable('x').getValues()
+    
+    routes = [[] for _ in range(num_vehicles)]
+    for row in x_result:
+        i, j, k = int(row[0]), int(row[1]), int(row[2])
+        if row[3] > 0.5:
+            routes[k-1].append((i, j))
+    
+    return routes
 
-if __name__ == "__main__":
-    filename = "c101.txt"
-    data = read_c101_file(filename)
-    solve_vrptw_ampl(data)
+def plot_solution(customers, routes):
+    plt.figure(figsize=(10, 10))
+    
+    unique_colors = list(mcolors.TABLEAU_COLORS.values())
+    used_colors = {}
+    legend_labels = []
+    legend_patches = []
+    
+    for idx, route in enumerate(routes):
+        if route:
+            if idx not in used_colors:
+                used_colors[idx] = unique_colors[len(used_colors) % len(unique_colors)]
+            color = used_colors[idx]
+            for (i, j) in route:
+                x_coords = [customers[i-1]['x'], customers[j-1]['x']]
+                y_coords = [customers[i-1]['y'], customers[j-1]['y']]
+                plt.plot(x_coords, y_coords, marker='o', color=color)
+            legend_labels.append(f"Veicolo {idx+1}")
+            legend_patches.append(plt.Line2D([0], [0], color=color, lw=2, label=f"Veicolo {idx+1}"))
+    
+    plt.xlabel("Coordinata X")
+    plt.ylabel("Coordinata Y")
+    plt.title("Soluzione VRPTW - AMPL")
+    if legend_patches:
+        plt.legend(handles=legend_patches, loc="upper right")
+    plt.show()
+
+customers = read_customers_from_file('c101.txt')
+num_vehicles = 25
+capacity = 200
+routes = solve_vrptw_amplepy(customers, num_vehicles, capacity)
+if routes:
+    plot_solution(customers, routes)
+else:
+    print("Nessuna soluzione ottimale trovata.")
