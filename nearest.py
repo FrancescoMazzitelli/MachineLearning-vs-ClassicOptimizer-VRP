@@ -28,7 +28,7 @@ def read_customers_from_file(filename):
 def distance(c1, c2):
     return ((c1['x'] - c2['x'])**2 + (c1['y'] - c2['y'])**2)**0.5
 
-def nearest_neighbor_vrptw(customers, num_vehicles, capacity):
+def nearest_neighbor_vrptw(customers, capacity):
     start_time = time.time()
     depot = customers[0]
     remaining_customers = customers[1:]
@@ -71,7 +71,7 @@ def nearest_neighbor_vrptw(customers, num_vehicles, capacity):
     
     return routes
 
-def plot_solution(customers, routes):
+def plot_solution(routes):
     plt.figure(figsize=(10, 10))
     unique_colors = list(mcolors.TABLEAU_COLORS.values())
     
@@ -90,6 +90,6 @@ def plot_solution(customers, routes):
 customers = read_customers_from_file('c101.txt')
 num_vehicles = 25
 capacity = 200
-routes = nearest_neighbor_vrptw(customers, num_vehicles, capacity)
+routes = nearest_neighbor_vrptw(customers, capacity)
 
-plot_solution(customers, routes)
+plot_solution(routes)
