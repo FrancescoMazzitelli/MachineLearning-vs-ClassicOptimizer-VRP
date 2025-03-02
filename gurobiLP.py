@@ -39,7 +39,10 @@ def solve_vrptw_gurobi(customers, num_vehicles, capacity):
     
     x = model.addVars(n, n, num_vehicles, vtype=GRB.BINARY, name="x")
     t = model.addVars(n, vtype=GRB.CONTINUOUS, name="t")
-    
+    model.setParam('MIPGap', 0)
+    model.setParam('FeasibilityTol', 1e-9)
+    model.setParam('IntFeasTol', 1e-9)
+
     model.setObjective(gp.quicksum(dist[i, j] * x[i, j, k] for i in range(n) for j in range(n) if i != j for k in range(num_vehicles)), GRB.MINIMIZE)
     
     for j in range(1, n):
