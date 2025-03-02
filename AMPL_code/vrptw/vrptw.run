@@ -1,9 +1,9 @@
 reset;
 model vrptw\vrptw.mod;
 data vrptw\vrptw.dat;
-option solver cplex;
+option solver gurobi;
 option MIPGap 0; 
 option FeasibilityTol 1e-9;
 option IntFeasTol 1e-9;
 solve;
-display TotalDistance;
+display TotalObjective;
