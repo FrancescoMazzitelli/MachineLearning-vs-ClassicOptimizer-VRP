@@ -116,11 +116,12 @@ def plot_solution(customers, routes):
     
     plt.show()
 
-customers = read_customers_from_file("MIPLearn\\Benchmark-alter\\C103-alter.txt")
-num_vehicles = 25
-capacity = 200
-routes = solve_vrptw_gurobi(customers, num_vehicles, capacity)
-if routes:
-    plot_solution(customers, routes)
-else:
-    print("Nessuna soluzione ottimale trovata.")
+for i in range(1,9):
+    print("\n\n\n")
+    print("File C10"+str(i))
+    print("\n\n\n")
+    customers = read_customers_from_file("MIPLearn\\Benchmark-alter\\C10"+str(i)+"-alter.txt")
+    num_vehicles = 25
+    capacity = 200
+    routes = solve_vrptw_gurobi(customers, num_vehicles, capacity)
+    print("\n\n\n")
